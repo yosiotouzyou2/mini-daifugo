@@ -123,12 +123,32 @@
             roomRef.child('players').once('value', (snap) => {
                 const players = snap.val();
                 const ids = Object.keys(players);
-                for (let id in players) {
-                    let hand = [];
-                    for(let i=0; i<6; i++) hand.push(Math.floor(Math.random() * 13) + 1);
-                    roomRef.child('players').child(id).update({ hand: hand });
+                
+                // 1. 全カードセット(1~13を4枚ずつ)を作る
+                let deck = [];
+                for (let i = 1; i <= 13; i++) {
+                    for (let j = 0; j < 4; j++) deck.push(i);
                 }
-                roomRef.update({ state: 'playing', tableCard: 0, turnPlayer: ids[0] });
+                
+                // 2. シャッフル（本物のトランプのように混ぜる）
+                for (let i = deck.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [deck[i], deck[j]] = [deck[j], deck[i]];
+                }
+
+                // 3. 順番に配る
+                ids.forEach((id) => {
+                    let hand = deck.splice(0, 6); // 1人に6枚
+                    hand.sort((a, b) => a - b);   // 見やすいように数字順に並べる
+                    roomRef.child('players').child(id).update({ hand: hand });
+                });
+
+                // 最初のターンと、最後にカードを出した人をセット
+                roomRef.update({ 
+                    tableCard: num,
+                    turnPlayer: nextId,
+                    lastShooter: myId // 自分が最後に出した人になる
+                });
             });
         }
 
@@ -190,8 +210,20 @@
             roomRef.once('value', (snap) => {
                 const data = snap.val();
                 stopTurnTimer();
+                
                 const nextId = getNextPlayerId(data.players, myId);
-                roomRef.update({ turnPlayer: nextId });
+                
+                // もし次の人が「最後にカードを出した人」なら、場を流す
+                if (nextId === data.lastShooter) {
+                    roomRef.update({ 
+                        tableCard: 0, 
+                        turnPlayer: nextId,
+                        lastShooter: "" // リセット
+                    });
+                    alert("全員パスしたので場が流れました！あなたの番です。");
+                } else {
+                    roomRef.update({ turnPlayer: nextId });
+                }
             });
         }
 
