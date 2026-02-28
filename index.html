@@ -13,6 +13,43 @@
         :root { --bg-color: #1a4a2e; --card-white: #fdfdfd; --accent: #f1c40f; }
         body { font-family: sans-serif; text-align: center; background: var(--bg-color); color: white; margin: 0; padding: 10px; overflow-x: hidden; }
         
+        /* 名前入力ボックスのスタイル */
+        #user-name {
+            width: 80%;            /* 画面横幅の80%まで広げる */
+            max-width: 300px;      /* 広がりすぎないように制限 */
+            padding: 12px;         /* 内側に余白を作って文字を打ちやすく */
+            font-size: 18px;       /* 文字を大きくして視認性アップ */
+            border-radius: 8px;    /* 角を丸く */
+            border: 2px solid #ccc;
+            margin: 15px 0;        /* 上下の間隔をあける */
+            box-sizing: border-box; /* paddingを含めたサイズ計算にする */
+            background: #fff;
+            color: #333;
+        }
+
+        /* 入力中に枠線の色を変えるとおしゃれ */
+        #user-name:focus {
+            border-color: var(--accent);
+            outline: none;
+            box-shadow: 0 0 8px rgba(241, 196, 15, 0.5);
+        }
+
+        /* 戦績表示エリアのスタイル */
+        #stats-container {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: inline-block;
+            min-width: 200px;
+        }
+
+        #reset-stats-btn:hover {
+            background: rgba(255, 0, 0, 0.2) !important;
+            color: #fff !important;
+            border-color: #ff4757 !important;
+        }
+
         #skill-cutin {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
             background: rgba(241, 196, 15, 0.95); color: #000; padding: 15px 20px;
@@ -65,7 +102,25 @@
         button:disabled { background: #777; opacity: 0.5; }
         
         .host-config { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin: 10px auto; max-width: 300px; }
-        
+
+        #result-screen h1 {
+            color: var(--accent);
+            text-shadow: 0 0 10px rgba(241, 196, 15, 0.8);
+            font-size: 32px;
+            margin-bottom: 30px;
+        }
+
+        /* 1位の時の特別な光 */
+        .first-place-glow {
+            text-shadow: 0 0 10px #fff, 0 0 20px #f1c40f, 0 0 30px #f1c40f;
+            animation: glow-anime 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow-anime {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+
         /* 警告状態の背景アニメーション */
         .warning-active {
             animation: danger-pulse 1.5s infinite;
@@ -90,7 +145,15 @@
 
     <div id="login-screen" class="screen active">
         <h1>🃏 ミニ大富豪</h1>
-        <input type="text" id="user-name" placeholder="名前を入力" maxlength="8"><br>
+
+        <div id="stats-container" style="margin-bottom: 20px;">
+            <div id="total-win-display" style="color: #f1c40f; font-size: 18px; font-weight: bold; margin-bottom: 5px;"></div>
+            <button id="reset-stats-btn" onclick="resetStats()" style="background: none; border: 1px solid #666; color: #999; font-size: 10px; padding: 2px 8px; border-radius: 4px; cursor: pointer;">
+                戦績をリセット
+            </button>
+        </div>
+
+        <input type="text" id="user-name" placeholder="名前を入力(8文字まで)" maxlength="8"><br>
         <p style="font-size:14px;">【スキルを選択】</p>
         <div id="skill-list"></div>
         <button onclick="checkRole()">ゲームに参加</button>
@@ -157,6 +220,47 @@
         { id: "lucky", name: "幸運の守護", desc: "パス時20%で手札-1枚。" },
         { id: "burster", name: "オーバーフロー", desc: "初期+4枚で勝利。パス時30%で自分+1枚。" }
     ];
+
+    // --- ページ読み込み時の処理 ---
+    window.addEventListener('load', () => {
+        // 保存された名前の復元
+        const savedName = localStorage.getItem('userName');
+        if (savedName) document.getElementById('user-name').value = savedName;
+
+        // 勝利数表示の更新
+        updateWinDisplay();
+    });
+
+    // --- 表示を更新する関数 ---
+    function updateWinDisplay() {
+        const totalFirstWins = parseInt(localStorage.getItem('firstPlaceWins') || "0");
+        const display = document.getElementById('total-win-display');
+        const resetBtn = document.getElementById('reset-stats-btn');
+
+        if (totalFirstWins > 0) {
+            // 勝利数に応じて称号を変える演出
+            let rank = "ビギナー";
+            if (totalFirstWins >= 5) rank = "常連";
+            if (totalFirstWins >= 10) rank = "勝負師";
+            if (totalFirstWins >= 20) rank = "大富豪マスター";
+            if (totalFirstWins >= 50) rank = "伝説";
+
+            display.innerHTML = `<span style="font-size:12px; color:#aaa;">称号: ${rank}</span><br>🏆 通算1位: ${totalFirstWins}勝`;
+            resetBtn.style.display = "inline-block";
+        } else {
+            display.innerText = "初勝利を目指そう！";
+            resetBtn.style.display = "none"; // 0勝の時はリセットボタンを隠す
+        }
+    }
+
+    // --- ★追加：戦績リセットの関数 ---
+    function resetStats() {
+        if (confirm("これまでの通算勝利数をリセットしてもよろしいですか？\n(名前の記憶は残ります)")) {
+            localStorage.setItem('firstPlaceWins', "0");
+            updateWinDisplay(); // 表示を即座に更新
+            alert("戦績をリセットしました。");
+        }
+    }
 
     function initSkillUI() {
         const container = document.getElementById('skill-list');
@@ -411,18 +515,33 @@
 
     function handleWin(data, nextId, nextCard, nextShooter) {
         const winners = data.winners || [];
-        // 二重登録防止
-        if (winners.includes(myName)) return;
+
+        // --- ★1位（最初の勝者）の時だけカウントアップ ---
+        if (winners.length === 0) { // まだ誰もあがっていない = 自分が1位
+            let firstPlaceWins = parseInt(localStorage.getItem('firstPlaceWins') || "0");
+            firstPlaceWins++;
+            localStorage.setItem('firstPlaceWins', firstPlaceWins);
+        }
+
+        const s = SKILLS_DATA.find(sd => sd.id === mySkill);
+        const myEntry = `${myName}（${s.name}）`; // 名前とスキル名を合体
+
+        // 二重登録防止（名前が含まれているかチェック）
+        if (winners.some(entry => entry.startsWith(myName))) return;
         
-        winners.push(myName);
+        winners.push(myEntry);
         const activePlayers = Object.keys(data.players).filter(id => id !== myId && !data.players[id].isOut);
         
         if (activePlayers.length <= 1) {
-            if (activePlayers.length === 1) winners.push(data.players[activePlayers[0]].name);
+            if (activePlayers.length === 1) {
+                const lastId = activePlayers[0];
+                const lastSkillId = data.players[lastId].skill;
+                const lastSkillName = SKILLS_DATA.find(sd => sd.id === lastSkillId).name;
+                winners.push(`${data.players[lastId].name}（${lastSkillName}）`);
+            }
             roomRef.child('players').child(myId).update({ hand: [], isOut: true });
             roomRef.update({ winners: winners, state: 'finished' });
         } else {
-            // 次のプレイヤーが指定されていない（バースト時など）場合は自動取得
             if (!nextId) nextId = getNextPlayerId(data.players, myId); 
             roomRef.child('players').child(myId).update({ hand: [], isOut: true });
             roomRef.update({ 
@@ -522,7 +641,36 @@
     function showResultScreen(winners) {
         document.getElementById('play-screen').classList.remove('active');
         document.getElementById('result-screen').classList.add('active');
-        document.getElementById('ranking-list').innerHTML = winners.map((name, i) => `<div>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'🎖️'} ${i+1}位: ${name}</div>`).join("");
+        
+        // 自分の通算1位回数を取得
+        const totalFirstWins = parseInt(localStorage.getItem('firstPlaceWins') || "0");
+        
+        // 勝利数に応じたアイコン（ヴィジュアル演出）
+        let trophy = "";
+        if (totalFirstWins >= 1)  trophy = "🥉"; // 1勝〜
+        if (totalFirstWins >= 5)  trophy = "🥈"; // 5勝〜
+        if (totalFirstWins >= 10) trophy = "🥇"; // 10勝〜
+        if (totalFirstWins >= 20) trophy = "💎"; // 20勝〜
+        if (totalFirstWins >= 50) trophy = "👑"; // 50勝〜（伝説）
+
+        document.getElementById('ranking-list').innerHTML = winners.map((entry, i) => {
+            const [name, skill] = entry.split('（');
+            const skillName = skill ? skill.replace('）', '') : 'なし';
+            
+            let medal = i === 0 ? '🏆' : '🎖️';
+            
+            // 自分の名前の行だけ豪華にする
+            const isMe = name === myName;
+            const myBadge = isMe ? `<span style="font-size:14px; vertical-align:middle;">${trophy}通算${totalFirstWins}勝</span>` : "";
+            const bgStyle = isMe ? `background: rgba(241, 196, 15, 0.1); border-left: 4px solid #f1c40f; padding-left: 10px;` : "";
+
+            return `
+                <div style="margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; ${bgStyle}">
+                    <span style="font-size: 24px;">${medal} ${i + 1}位: ${name} ${myBadge}</span><br>
+                    <span style="font-size: 14px; color: var(--accent); margin-left: 35px;">使用能力: 【${skillName}】</span>
+                </div>
+            `;
+        }).join("");
     }
     function toDisp(num) { const map = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K', 0: 'ー' }; return map[num] || num; }
     function getRank(num) { return num === 1 ? 14 : num === 2 ? 15 : num; }
