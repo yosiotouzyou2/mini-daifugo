@@ -31,6 +31,25 @@
             border-radius: 8px; margin: 3px; line-height: 85px; font-size: 20px; font-weight: bold;
             border: 2px solid #000; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); cursor: pointer; transition: 0.2s;
         }
+        /* カードにグラデーションと縁取りを追加 */
+        .card { 
+            background: linear-gradient(145deg, #ffffff, #e6e6e6);
+            border: 1px solid #999;
+            border-radius: 5px;
+            box-shadow: 3px 3px 8px rgba(0,0,0,0.4);
+            color: #2c3e50;
+            text-shadow: 1px 1px 0px rgba(255,255,255,0.5);
+        }
+
+        /* 数字が赤いカード（ハート・ダイヤ想定）っぽく見せる */
+        .card:nth-child(odd) { color: #e74c3c; } 
+
+        /* テーブルに出ているカードを特別にする */
+        #table-card { 
+            background: #fffbe6;
+            border: 3px solid #f1c40f;
+            box-shadow: 0 0 20px rgba(241, 196, 15, 0.5);
+        }
         .card:not(.turn-highlight) { opacity: 0.4; transform: scale(0.9); }
         .turn-highlight { border: 3px solid var(--accent); box-shadow: 0 0 10px var(--accent); opacity: 1 !important; transform: translateY(-5px); }
         
@@ -276,7 +295,6 @@
             const ids = Object.keys(players);
             if (ids.length < 2) { alert("2人以上必要です"); return; }
             
-            // ★ 配布ロジック：デッキを使わず、各プレイヤーに完全ランダムな数値を生成
             ids.forEach(id => {
                 let randomHand = [];
                 for (let i = 0; i < handSize; i++) {
@@ -285,6 +303,7 @@
                 randomHand.sort((a, b) => a - b);
                 roomRef.child('players').child(id).update({ hand: randomHand, isOut: false });
             });
+
             roomRef.update({ 
                 state: 'playing', 
                 tableCard: 0, 
@@ -292,7 +311,7 @@
                 lastShooter: "", 
                 winners: [], 
                 handSize: handSize,
-                lastSkill: `${handSize}枚で開始！+4枚でバースト勝利`, 
+                lastSkill: `ゲーム開始！手札${handSize}枚`,
                 lastEffectId: Math.random() 
             });
         });
