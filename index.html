@@ -156,35 +156,34 @@
         function showPlayScreen(data) {
             document.getElementById('wait-screen').classList.remove('active');
             document.getElementById('play-screen').classList.add('active');
+
+            // --- ここが148行目付近の問題の箇所 ---
+            // 場のカードを表示。0なら「ー」、数字があればその数字を出す。
+            document.getElementById('table-card').innerText = data.tableCard || "ー";
             
-            // ❌ ここで num を使っているとエラーになります
-            // ✅ data.tableCard を使うのが正解です
-            const tableCardValue = data.tableCard || 0;
-            document.getElementById('table-card').innerText = (tableCardValue === 0) ? "ー" : tableCardValue;
-            
+            // ターン情報の表示
             const isMyTurn = (data.turnPlayer === myId);
             document.getElementById('turn-info').innerText = isMyTurn ? "★ あなたの番です ★" : `${data.players[data.turnPlayer]?.name}さんの番です`;
             document.getElementById('pass-btn').disabled = !isMyTurn;
 
+            // タイマー制御
             if (isMyTurn) {
                 startTurnTimer();
             } else {
                 stopTurnTimer();
             }
 
+            // 手札の表示
             const myData = data.players[myId];
             const handDiv = document.getElementById('my-hand');
             handDiv.innerHTML = "";
-            
-            // 手札を表示するループ（ここは num で合っています）
             if (myData && myData.hand) {
                 myData.hand.forEach((num, idx) => {
                     const c = document.createElement('div');
                     c.className = 'card' + (isMyTurn ? ' turn-highlight' : '');
                     c.innerText = num;
-                    c.onclick = () => {
-                        if (isMyTurn) playCard(num, idx, myData.hand);
-                    };
+                    // ここでの num は forEach の中なので使っても大丈夫です
+                    c.onclick = () => isMyTurn && playCard(num, idx, myData.hand);
                     handDiv.appendChild(c);
                 });
             }
