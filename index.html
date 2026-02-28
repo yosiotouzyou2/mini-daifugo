@@ -3,34 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ミニ大富豪 - スキルカード対戦版</title>
+    <title>ミニ大富豪 - 全員決着サバイバル版</title>
     <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root { --bg-color: #1a4a2e; --card-white: #fdfdfd; }
         body { font-family: sans-serif; text-align: center; background: var(--bg-color); color: white; margin: 0; padding: 20px; }
-        
-        /* カード基本スタイル */
         .card { 
             display: inline-block; width: 65px; height: 95px; background: var(--card-white); color: #333;
             border-radius: 8px; margin: 5px; line-height: 95px; font-size: 24px; font-weight: bold;
             border: 2px solid #000; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); cursor: pointer; transition: 0.3s;
         }
-        
-        /* プレイ画面のガイド演出 */
         .card:not(.turn-highlight) { opacity: 0.4; cursor: default; transform: scale(0.9); }
         .turn-highlight { border: 4px solid #f1c40f; box-shadow: 0 0 15px #f1c40f; opacity: 1 !important; transform: translateY(-10px) scale(1.1); }
         
-        /* スキル選択カード */
-        .skill-container { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin: 20px 0; }
-        .skill-card { 
-            width: 130px; padding: 12px; background: #fff; color: #333; border-radius: 10px; 
-            border: 3px solid #ccc; cursor: pointer; transition: 0.3s; 
-        }
+        .skill-container { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
+        .skill-card { width: 120px; padding: 10px; background: #fff; color: #333; border-radius: 10px; border: 3px solid #ccc; cursor: pointer; transition: 0.3s; }
         .skill-card.selected { border-color: #f1c40f; box-shadow: 0 0 15px #f1c40f; background: #fffbe6; transform: scale(1.05); }
-        .skill-name { font-weight: bold; font-size: 15px; display: block; margin-bottom: 5px; color: #d35400; }
-        .skill-desc { font-size: 11px; color: #666; display: block; line-height: 1.3; }
+        .skill-name { font-weight: bold; font-size: 14px; display: block; margin-bottom: 5px; color: #d35400; }
+        .skill-desc { font-size: 10px; color: #666; display: block; line-height: 1.2; }
 
         .screen { display: none; }
         .active { display: block; }
@@ -53,11 +45,12 @@
         <h2 id="wait-msg">接続中...</h2>
         <div id="qr-area" style="display:flex; justify-content:center; margin:20px;"></div>
         <p id="player-list">参加者: 待機中...</p>
-        <button id="start-btn" style="display:none;" onclick="startGame()">全員揃った！開始</button>
+        <button id="start-btn" style="display:none;" onclick="startGame()">開始</button>
     </div>
 
     <div id="play-screen" class="screen">
         <div id="timer-display" style="color:#ff6b6b; font-weight:bold; height:30px;"></div>
+        <p id="rank-info" style="color: #f1c40f;"></p>
         <p>【場のカード】</p>
         <div id="table-card" class="card">ー</div>
         <div id="turn-info" style="margin:10px; font-weight:bold;"></div>
@@ -67,15 +60,15 @@
     </div>
 
     <div id="result-screen" class="screen">
-        <h1>🎉 優勝 🎉</h1>
-        <div id="winner-name" style="font-size:40px; color:gold;"></div>
+        <h1>🎉 全員終了 🎉</h1>
+        <div id="ranking-list" style="font-size:20px; line-height: 2;"></div>
         <button onclick="location.reload()">もう一度遊ぶ</button>
     </div>
 
     <button onclick="adminReset()" style="position:fixed; bottom:5px; right:5px; opacity:0.3; font-size:10px; background:#000; color:#fff;">管理者リセット</button>
 
 <script>
-    // --- 初期設定 ---
+    // --- Firebase設定 (あなたのものに置き換えてください) ---
     const firebaseConfig = {
         apiKey: "AIzaSyAa1CZBgLYViSMKhg-9D33EZUQwXENFwzo",
         authDomain: "game-496d3.firebaseapp.com",
@@ -94,14 +87,17 @@
     let mySkill = "none";
     let isHost = false;
     let kickTimer;
+    let lastOutCount = 0; // 強欲な壺用：これまでに何人上がったか
 
     const SKILLS_DATA = [
-        { id: "none", name: "能力なし", desc: "実力のみで戦う、硬派なスタイル。" },
-        { id: "curse", name: "復讐の呪い", desc: "自分がパスすると、他の全員にカードを+1枚する。" },
-        { id: "eightMaster", name: "8切り職人", desc: "8を出すと場を流し、もう一度自分の番になる。" }
+        { id: "none", name: "能力なし", desc: "実力のみで戦うスタイル。" },
+        { id: "eightMaster", name: "8切り職人", desc: "8を出すと場を流し、自分の番。" },
+        { id: "curse", name: "復讐の呪い", desc: "パスすると他全員のカードを+1枚。" },
+        { id: "greed", name: "強欲な壺", desc: "誰かが上がるたび、手札が1枚減る。" },
+        { id: "antiTwo", name: "下克上の英雄", desc: "スキル所有者のみ「2」を「3」で倒せる。" },
+        { id: "lucky", name: "幸運の守護", desc: "パス時、20%の確率で手札が1枚減少。" }
     ];
 
-    // --- 補助関数 ---
     function getRank(num) {
         if (num === 0) return 0;
         if (num === 1) return 14; 
@@ -114,7 +110,6 @@
         return map[num] || num;
     }
 
-    // --- スキル選択UIの生成 ---
     function initSkillUI() {
         const container = document.getElementById('skill-list');
         SKILLS_DATA.forEach(skill => {
@@ -132,15 +127,13 @@
     }
     initSkillUI();
 
-    // --- 参加・待機処理 ---
     async function checkRole() {
         myName = document.getElementById('user-name').value || "ななし";
         const snap = await roomRef.get();
         const data = snap.val();
-
         if (!data || data.state === 'finished' || !data.state) {
             isHost = true;
-            await roomRef.set({ state: 'waiting', tableCard: 0, lastUpdate: Date.now(), players: {} });
+            await roomRef.set({ state: 'waiting', tableCard: 0, winners: [], players: {} });
             new QRCode(document.getElementById("qr-area"), window.location.href);
             document.getElementById('start-btn').style.display = "inline-block";
         }
@@ -148,7 +141,7 @@
     }
 
     function joinGame() {
-        roomRef.child('players').child(myId).set({ name: myName, hand: [0], skill: mySkill });
+        roomRef.child('players').child(myId).set({ name: myName, hand: [0], skill: mySkill, isOut: false });
         roomRef.child('players').child(myId).onDisconnect().remove();
         if (isHost) roomRef.onDisconnect().remove();
 
@@ -158,10 +151,38 @@
         roomRef.on('value', (snap) => {
             const data = snap.val();
             if (!data) return;
-            const pKeys = Object.keys(data.players || {});
-            document.getElementById('player-list').innerText = "参加者: " + pKeys.map(k => data.players[k].name).join(", ");
-            if (data.state === 'playing') showPlayScreen(data);
-            if (data.state === 'finished') showResultScreen(data.winners);
+
+            const players = data.players || {};
+            const winners = data.winners || [];
+
+            // 強欲な壺：誰かが上がった（winnersが増えた）時に発動
+            if (mySkill === 'greed' && winners.length > lastOutCount && !players[myId].isOut) {
+                const myHand = [...(players[myId].hand || [])];
+                if (myHand.length > 0) {
+                    myHand.splice(0, 1);
+                    roomRef.child('players').child(myId).update({ hand: myHand });
+                    alert("強欲な壺発動！誰かが上がったので手札を1枚捨てました。");
+                    if (myHand.length === 0) handleWin(data);
+                }
+                lastOutCount = winners.length;
+            } else {
+                lastOutCount = winners.length;
+            }
+
+            const pKeys = Object.keys(players);
+            document.getElementById('player-list').innerText = "参加者: " + pKeys.map(k => players[k].name).join(", ");
+            
+            if (data.state === 'playing') {
+                if (players[myId].isOut) {
+                    document.getElementById('play-screen').classList.add('active');
+                    document.getElementById('turn-info').innerText = "あなたはあがりました。観戦中...";
+                    document.getElementById('my-hand').innerHTML = "";
+                    document.getElementById('pass-btn').disabled = true;
+                } else {
+                    showPlayScreen(data);
+                }
+            }
+            if (data.state === 'finished') showResultScreen(winners, players);
         });
     }
 
@@ -172,80 +193,110 @@
             let deck = [];
             for (let i = 1; i <= 13; i++) for (let j = 0; j < 4; j++) deck.push(i);
             deck.sort(() => Math.random() - 0.5);
-
             ids.forEach(id => {
                 let hand = deck.splice(0, 6).sort((a, b) => a - b);
-                roomRef.child('players').child(id).update({ hand: hand });
+                roomRef.child('players').child(id).update({ hand: hand, isOut: false });
             });
-            roomRef.update({ state: 'playing', tableCard: 0, turnPlayer: ids[0], lastShooter: "" });
+            roomRef.update({ state: 'playing', tableCard: 0, turnPlayer: ids[0], lastShooter: "", winners: [] });
         });
     }
 
-    // --- ゲーム画面更新 ---
     function showPlayScreen(data) {
         document.getElementById('wait-screen').classList.remove('active');
         document.getElementById('play-screen').classList.add('active');
         document.getElementById('table-card').innerText = toDisp(data.tableCard);
         
         const isMyTurn = (data.turnPlayer === myId);
-        document.getElementById('turn-info').innerText = isMyTurn ? "★ あなたの番です ★" : `${data.players[data.turnPlayer]?.name}さんの番です`;
+        document.getElementById('turn-info').innerText = isMyTurn ? "★ あなたの番です ★" : `${data.players[data.turnPlayer]?.name}さんの番`;
         document.getElementById('pass-btn').disabled = !isMyTurn;
 
         if (isMyTurn) startTimer(); else stopTimer();
 
-        const myData = data.players[myId];
+        const myHand = data.players[myId].hand || [];
         const handDiv = document.getElementById('my-hand');
         handDiv.innerHTML = "";
-        if (myData && myData.hand) {
-            const top = data.tableCard || 0;
-            myData.hand.forEach((num, idx) => {
-                const c = document.createElement('div');
-                // 出せる条件判定
-                const myRank = getRank(num);
-                const topRank = getRank(top);
-                const can = isMyTurn && (top === 0 || (top === 2 && num === 3) || (num === 2 && top !== 2) || (num !== 2 && myRank > topRank));
-                
-                c.className = 'card' + (can ? ' turn-highlight' : '');
-                c.innerText = toDisp(num);
-                c.onclick = () => can && playCard(num, idx, myData.hand);
-                handDiv.appendChild(c);
-            });
-        }
+        const top = data.tableCard || 0;
+
+        myHand.forEach((num, idx) => {
+            const c = document.createElement('div');
+            const can = isMyTurn && (
+                top === 0 || 
+                (top === 2 && num === 3 && mySkill === 'antiTwo') || 
+                (num === 2 && top !== 2) || 
+                (num !== 2 && getRank(num) > getRank(top))
+            );
+            c.className = 'card' + (can ? ' turn-highlight' : '');
+            c.innerText = toDisp(num);
+            c.onclick = () => can && playCard(num, idx, myHand);
+            handDiv.appendChild(c);
+        });
     }
 
-    // --- アクション ---
     function playCard(num, idx, hand) {
         roomRef.once('value', (snap) => {
             const data = snap.val();
             hand.splice(idx, 1);
-            let nextId = getNextPlayerId(data.players, myId);
+            
             let nextCard = num;
             let nextShooter = myId;
+            let nextId;
 
             if (mySkill === "eightMaster" && num === 8) {
-                alert("8切り発動！自分のターンが続きます。");
+                alert("8切り！");
                 nextId = myId; nextCard = 0; nextShooter = "";
+            } else {
+                nextId = getNextPlayerId(data.players, myId);
             }
 
-            roomRef.update({ tableCard: nextCard, turnPlayer: nextId, lastShooter: nextShooter });
-            roomRef.child('players').child(myId).update({ hand: hand });
-            if (hand.length === 0) roomRef.update({ state: 'finished', winners: myName });
+            if (hand.length === 0) {
+                handleWin(data, nextId, nextCard, nextShooter);
+            } else {
+                roomRef.child('players').child(myId).update({ hand: hand });
+                roomRef.update({ tableCard: nextCard, turnPlayer: nextId, lastShooter: nextShooter });
+            }
         });
+    }
+
+    function handleWin(data, nextId, nextCard, nextShooter) {
+        const winners = data.winners || [];
+        winners.push(myName);
+        
+        // まだ残っているプレイヤーの数を確認
+        const activePlayers = Object.keys(data.players).filter(id => id !== myId && !data.players[id].isOut);
+        
+        if (activePlayers.length === 0) {
+            // 全員終了
+            roomRef.child('players').child(myId).update({ hand: [], isOut: true });
+            roomRef.update({ winners: winners, state: 'finished' });
+        } else {
+            // まだ続く。自分をスキップする次の人を計算
+            if (!nextId) nextId = getNextPlayerId(data.players, myId); 
+            roomRef.child('players').child(myId).update({ hand: [], isOut: true });
+            roomRef.update({ winners: winners, turnPlayer: nextId, tableCard: nextCard || 0, lastShooter: nextShooter || "" });
+            alert("あがり！他の人の対戦を待っています...");
+        }
     }
 
     function passTurn() {
         roomRef.once('value', (snap) => {
             const data = snap.val();
+            const myHand = [...(data.players[myId].hand || [])];
+
             if (mySkill === "curse") {
                 Object.keys(data.players).forEach(pId => {
-                    if (pId !== myId) {
-                        const newCard = Math.floor(Math.random() * 13) + 1;
-                        const newHand = [...(data.players[pId].hand || []), newCard].sort((a,b)=>a-b);
-                        roomRef.child('players').child(pId).update({ hand: newHand });
+                    if (pId !== myId && !data.players[pId].isOut) {
+                        const h = [...(data.players[pId].hand || []), Math.floor(Math.random() * 13) + 1].sort((a,b)=>a-b);
+                        roomRef.child('players').child(pId).update({ hand: h });
                     }
                 });
-                alert("呪い発動！他プレイヤーのカードが増えました。");
             }
+
+            if (mySkill === "lucky" && Math.random() < 0.2 && myHand.length > 0) {
+                myHand.splice(0, 1);
+                roomRef.child('players').child(myId).update({ hand: myHand });
+                if (myHand.length === 0) { handleWin(data); return; }
+            }
+
             const nextId = getNextPlayerId(data.players, myId);
             if (nextId === data.lastShooter) roomRef.update({ tableCard: 0, turnPlayer: nextId, lastShooter: "" });
             else roomRef.update({ turnPlayer: nextId });
@@ -254,17 +305,37 @@
 
     function getNextPlayerId(players, cId) {
         const ids = Object.keys(players);
-        return ids[(ids.indexOf(cId) + 1) % ids.length];
+        let idx = ids.indexOf(cId);
+        for (let i = 1; i < ids.length; i++) {
+            let nextIdx = (idx + i) % ids.length;
+            let nextId = ids[nextIdx];
+            if (!players[nextId].isOut) return nextId;
+        }
+        return cId; 
     }
 
-    // --- タイマー・リセット ---
     function startTimer() {
         stopTimer();
         document.getElementById('timer-display').innerText = "制限時間: 45秒";
         kickTimer = setTimeout(() => { passTurn(); roomRef.child('players').child(myId).remove(); location.reload(); }, 45000);
     }
     function stopTimer() { clearTimeout(kickTimer); document.getElementById('timer-display').innerText = ""; }
-    function showResultScreen(w) { document.getElementById('play-screen').classList.remove('active'); document.getElementById('result-screen').classList.add('active'); document.getElementById('winner-name').innerText = w; }
+
+    function showResultScreen(winners, players) {
+        document.getElementById('play-screen').classList.remove('active');
+        document.getElementById('result-screen').classList.add('active');
+        const list = document.getElementById('ranking-list');
+        list.innerHTML = winners.map((name, i) => `<div>${i+1}位: ${name}</div>`).join("");
+        
+        // ドベ（最後の一人）を追加
+        const allIds = Object.keys(players);
+        const outIds = allIds.filter(id => players[id].isOut);
+        const lastId = allIds.find(id => !players[id].isOut);
+        if (lastId) {
+            list.innerHTML += `<div style="color: #666;">ドベ: ${players[lastId].name}</div>`;
+        }
+    }
+
     function adminReset() { if (prompt("PASS") === "1204") roomRef.remove().then(() => location.reload()); }
 </script>
 </body>
