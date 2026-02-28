@@ -156,7 +156,11 @@
         function showPlayScreen(data) {
             document.getElementById('wait-screen').classList.remove('active');
             document.getElementById('play-screen').classList.add('active');
-            document.getElementById('table-card').innerText = data.tableCard || "ー";
+            
+            // ❌ ここで num を使っているとエラーになります
+            // ✅ data.tableCard を使うのが正解です
+            const tableCardValue = data.tableCard || 0;
+            document.getElementById('table-card').innerText = (tableCardValue === 0) ? "ー" : tableCardValue;
             
             const isMyTurn = (data.turnPlayer === myId);
             document.getElementById('turn-info').innerText = isMyTurn ? "★ あなたの番です ★" : `${data.players[data.turnPlayer]?.name}さんの番です`;
@@ -171,13 +175,19 @@
             const myData = data.players[myId];
             const handDiv = document.getElementById('my-hand');
             handDiv.innerHTML = "";
-            (myData.hand || []).forEach((num, idx) => {
-                const c = document.createElement('div');
-                c.className = 'card' + (isMyTurn ? ' turn-highlight' : '');
-                c.innerText = num;
-                c.onclick = () => isMyTurn && playCard(num, idx, myData.hand);
-                handDiv.appendChild(c);
-            });
+            
+            // 手札を表示するループ（ここは num で合っています）
+            if (myData && myData.hand) {
+                myData.hand.forEach((num, idx) => {
+                    const c = document.createElement('div');
+                    c.className = 'card' + (isMyTurn ? ' turn-highlight' : '');
+                    c.innerText = num;
+                    c.onclick = () => {
+                        if (isMyTurn) playCard(num, idx, myData.hand);
+                    };
+                    handDiv.appendChild(c);
+                });
+            }
         }
 
         // --- 4. カードを出す (下克上ルール込) ---
