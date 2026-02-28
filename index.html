@@ -259,14 +259,17 @@
                 // 左上のスキル状態を表示
                 document.getElementById('my-skill-status').style.display = "block";
                 const s = SKILLS_DATA.find(sd => sd.id === mySkill);
+
                 document.getElementById('status-skill-name').innerText = s.name;
                 
-                // スキルに応じた勝利目標の表示切り替え
-                if (mySkill === "burster") {
-                    document.getElementById('status-skill-desc').innerText = `目標：手札${handSizeLimit}枚で勝利`;
-                } else {
-                    document.getElementById('status-skill-desc').innerText = `目標：手札0枚で勝利`;
-                }
+            let extraInfo = "";
+            if (mySkill === "burster") {
+                const handSizeLimit = (data.handSize || 6) + 4;
+                extraInfo = `<br><span style="color:#f1c40f; font-weight:bold; border-top:1px dashed #555; display:block; margin-top:4px; padding-top:4px;">🚩 目標：手札${handSizeLimit}枚で勝利</span>`;
+            }
+
+            // 説明文を表示（オーバーフローのみ目標が追記される）
+            document.getElementById('status-skill-desc').innerHTML = s.desc + extraInfo;
 
                 if (myData.isOut) {
                     // あがった後の観戦モード
