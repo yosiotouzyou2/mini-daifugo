@@ -65,6 +65,18 @@
         button:disabled { background: #777; opacity: 0.5; }
         
         .host-config { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin: 10px auto; max-width: 300px; }
+        
+        /* 警告状態の背景アニメーション */
+        .warning-active {
+            animation: danger-pulse 1.5s infinite;
+            background: #4a1a1a !important; /* 暗い赤色に変化 */
+        }
+
+        @keyframes danger-pulse {
+            0% { box-shadow: inset 0 0 50px rgba(255, 0, 0, 0); }
+            50% { box-shadow: inset 0 0 100px rgba(255, 0, 0, 0.5); }
+            100% { box-shadow: inset 0 0 50px rgba(255, 0, 0, 0); }
+        }
     </style>
 </head>
 <body>
@@ -190,32 +202,46 @@
             isOut: false 
         });
         
-        // 切断時の自動削除設定
+        // 自分が切断した時に自分のデータだけ消す
         roomRef.child('players').child(myId).onDisconnect().remove();
-        if (isHost) roomRef.onDisconnect().remove();
 
-        // 画面切り替え
+        // ★親機（ホスト）の場合、自分が切断したらルームごと削除する
+        if (isHost) {
+            roomRef.onDisconnect().remove();
+        }
+
         document.getElementById('login-screen').classList.remove('active');
         document.getElementById('wait-screen').classList.add('active');
 
-        // データベースのリアルタイム監視
         roomRef.on('value', (snap) => {
             const data = snap.val();
-            if (!data || !data.players || !data.players[myId]) return;
+
+            // --- ① 親機離脱・ルーム消失チェック ---
+            if (!data) {
+                alert("ホストが退出したか、ルームが解散されました。");
+                location.reload(); 
+                return;
+            }
+
+            // 自分がリストから消された場合（キックなど）もホームへ
+            if (!data.players || !data.players[myId]) {
+                location.reload();
+                return;
+            }
 
             const players = data.players;
             const winners = data.winners || [];
             const myData = players[myId];
             const myHand = myData.hand || [];
-            const handSizeLimit = (data.handSize || 6) + 4; // バーストの基準枚数
+            const handSizeLimit = (data.handSize || 6) + 4; // バーストの基準
 
-            // --- ①【最優先】勝利判定ロジック ---
+            // --- ② 勝利判定ロジック ---
             if (!myData.isOut && data.state === 'playing') {
-                // A. バースト職（burster）専用：初期枚数+4枚で勝利
+                // オーバーフロー(burster)専用：枚数上限で勝利
                 if (mySkill === "burster") {
                     if (myHand.length >= handSizeLimit) {
                         roomRef.update({ 
-                            lastSkill: `限界突破！バースト勝利 (${myName})`, 
+                            lastSkill: `限界突破！オーバーフロー勝利 (${myName})`, 
                             lastEffectId: Math.random() 
                         });
                         handleWin(data);
@@ -223,24 +249,24 @@
                     }
                 } 
                 
-                // B. 通常勝利：手札が0枚になったら勝利
+                // 通常勝利：手札0枚で勝利
                 if (myHand.length === 0) {
                     handleWin(data);
                     return;
                 }
             }
 
-            // --- ② スキル演出（カットイン）の表示 ---
+            // --- ③ スキル演出（カットイン） ---
             if (data.lastEffectId !== this.prevEffectId && data.lastSkill) {
                 showSkillEffect(data.lastSkill);
                 this.prevEffectId = data.lastEffectId;
             }
 
-            // --- ③ パッシブスキル：強欲な壺（greed）の自動処理 ---
+            // --- ④ パッシブスキル：強欲な壺（greed） ---
             if (mySkill === 'greed' && winners.length > lastOutCount && !myData.isOut) {
                 const h = [...myHand];
                 if (h.length > 0) {
-                    h.splice(0, 1); // 1枚減らす
+                    h.splice(0, 1);
                     roomRef.child('players').child(myId).update({ hand: h });
                     roomRef.update({ 
                         lastSkill: `強欲な壺！手札-1枚 (${myName})`, 
@@ -250,29 +276,25 @@
             }
             lastOutCount = winners.length;
 
-            // --- ④ 参加者リストの更新 ---
+            // --- ⑤ 参加者リスト表示 ---
             document.getElementById('player-list').innerText = "参加者: " + 
                 Object.keys(players).map(k => k === myId ? players[k].name + " (自分)" : players[k].name).join(", ");
             
-            // --- ⑤ プレイ画面の制御 ---
+            // --- ⑥ プレイ画面・ステータスの制御 ---
             if (data.state === 'playing') {
-                // 左上のスキル状態を表示
                 document.getElementById('my-skill-status').style.display = "block";
                 const s = SKILLS_DATA.find(sd => sd.id === mySkill);
-
                 document.getElementById('status-skill-name').innerText = s.name;
                 
-            let extraInfo = "";
-            if (mySkill === "burster") {
-                const handSizeLimit = (data.handSize || 6) + 4;
-                extraInfo = `<br><span style="color:#f1c40f; font-weight:bold; border-top:1px dashed #555; display:block; margin-top:4px; padding-top:4px;">🚩 目標：手札${handSizeLimit}枚で勝利</span>`;
-            }
-
-            // 説明文を表示（オーバーフローのみ目標が追記される）
-            document.getElementById('status-skill-desc').innerHTML = s.desc + extraInfo;
+                // オーバーフローの人だけ目標を表示する
+                let extraInfo = "";
+                if (mySkill === "burster") {
+                    extraInfo = `<br><span style="color:#f1c40f; font-weight:bold; border-top:1px dashed #555; display:block; margin-top:4px; padding-top:4px;">🚩 目標：手札${handSizeLimit}枚で勝利</span>`;
+                }
+                document.getElementById('status-skill-desc').innerHTML = s.desc + extraInfo;
 
                 if (myData.isOut) {
-                    // あがった後の観戦モード
+                    // あがった後の処理
                     document.getElementById('wait-screen').classList.remove('active');
                     document.getElementById('play-screen').classList.add('active');
                     document.getElementById('turn-info').innerText = "あがりました！観戦中...";
@@ -280,12 +302,11 @@
                     document.getElementById('pass-btn').disabled = true;
                     document.getElementById('pass-hint').innerText = "";
                 } else {
-                    // 通常のプレイ画面描画
                     showPlayScreen(data);
                 }
             }
 
-            // --- ⑥ 結果画面の制御 ---
+            // --- ⑦ 結果画面の制御 ---
             if (data.state === 'finished') {
                 document.getElementById('my-skill-status').style.display = "none";
                 showResultScreen(winners);
@@ -466,8 +487,38 @@
         return cId; 
     }
 
-    function startTimer() { stopTimer(); kickTimer = setTimeout(() => { passTurn(); roomRef.child('players').child(myId).remove(); location.reload(); }, 45000); }
-    function stopTimer() { clearTimeout(kickTimer); }
+    let warningTimer; // 警告用のタイマー変数
+
+    function startTimer() { 
+        stopTimer(); 
+        
+        // ① 30秒後に警告を出す
+        warningTimer = setTimeout(() => {
+            document.body.classList.add('warning-active');
+            document.getElementById('timer-display').innerText = "⚠️ 警告：放置しすぎです！まもなく退出させられます";
+            // 演出：スマホならバイブレーションを鳴らす（ブラウザ制限あり）
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        }, 30000);
+
+        // ② 45秒後にキック実行
+        kickTimer = setTimeout(() => { 
+            if (isHost) {
+                alert("放置のためルームを解散しました");
+                roomRef.remove().then(() => location.reload());
+            } else {
+                passTurn(); 
+                roomRef.child('players').child(myId).remove(); 
+                location.reload(); 
+            }
+        }, 45000); 
+    }
+
+    function stopTimer() { 
+        clearTimeout(warningTimer);
+        clearTimeout(kickTimer);
+        document.body.classList.remove('warning-active');
+        document.getElementById('timer-display').innerText = "";
+    }
     function showResultScreen(winners) {
         document.getElementById('play-screen').classList.remove('active');
         document.getElementById('result-screen').classList.add('active');
