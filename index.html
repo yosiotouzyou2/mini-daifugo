@@ -109,6 +109,12 @@
 
         function joinGame() {
             roomRef.child('players').child(myId).set({ name: myName, hand: [0] });
+            roomRef.child('players').child(myId).onDisconnect().remove();
+
+            // もし自分が「親」なら、接続が切れたら部屋全体をリセットする
+            if (isHost) {
+                roomRef.onDisconnect().remove();
+            }
             document.getElementById('login-screen').classList.remove('active');
             document.getElementById('wait-screen').classList.add('active');
 
@@ -267,10 +273,27 @@
             inactivityTimer = setTimeout(() => {
                 alert("【30秒経過】あと15秒で強制退出です！");
             }, 30000);
-            kickTimer = setTimeout(() => {
-                alert("時間切れで退出しました");
-                roomRef.child('players').child(myId).remove();
-                location.reload();
+           kickTimer = setTimeout(() => {
+                alert("時間切れのため、パスして退出します");
+                
+                // 1. 次の人にターンを回す（passTurnの処理をここでも実行）
+                roomRef.once('value', (snap) => {
+                    const data = snap.val();
+                    if (data && data.turnPlayer === myId) {
+                        const nextId = getNextPlayerId(data.players, myId);
+                        
+                        // 全員パスで場が流れる判定も一応入れておく
+                        if (nextId === data.lastShooter) {
+                            roomRef.update({ tableCard: 0, turnPlayer: nextId, lastShooter: "" });
+                        } else {
+                            roomRef.update({ turnPlayer: nextId });
+                        }
+                    }
+                    
+                    // 2. 自分のデータを消してリロード
+                    roomRef.child('players').child(myId).remove();
+                    location.reload();
+                });
             }, 45000);
         }
 
