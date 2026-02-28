@@ -167,7 +167,6 @@
             const top = data.tableCard || 0;
             const displayTop = (top === 1) ? 'A' : (top === 11) ? 'J' : (top === 12) ? 'Q' : (top === 13) ? 'K' : (top === 0) ? 'ー' : top;
             document.getElementById('table-card').innerText = displayTop;
-            document.getElementById('table-card').innerText = data.tableCard || "ー";
             
             const isMyTurn = (data.turnPlayer === myId);
             document.getElementById('turn-info').innerText = isMyTurn ? "★ あなたの番です ★" : `${data.players[data.turnPlayer]?.name}さんの番です`;
@@ -179,15 +178,35 @@
                 stopTurnTimer();
             }
 
+            // 手札の表示
             const myData = data.players[myId];
             const handDiv = document.getElementById('my-hand');
             handDiv.innerHTML = "";
+            
             if (myData && myData.hand) {
+                const top = data.tableCard || 0; // 現在の場のカードを取得
+
                 myData.hand.forEach((num, idx) => {
                     const c = document.createElement('div');
-                    c.className = 'card' + (isMyTurn ? ' turn-highlight' : '');
+                    
+                    // --- 出せるかどうか判定 ---
+                    let canPlayThisCard = false;
+                    if (isMyTurn) {
+                        const myRank = getRank(num);
+                        const topRank = getRank(top);
+                        
+                        if (top === 0) canPlayThisCard = true; // 場が空
+                        else if (top === 2 && num === 3) canPlayThisCard = true; // 下克上
+                        else if (top !== 2 && myRank > topRank) canPlayThisCard = true; // 通常の強さ比較
+                    }
+
+                    // --- 出せるカードだけ turn-highlight クラスをつける ---
+                    c.className = 'card' + (canPlayThisCard ? ' turn-highlight' : '');
+                    
+                    // 表示用の変換 (A, J, Q, K)
                     const displayNum = (num === 1) ? 'A' : (num === 11) ? 'J' : (num === 12) ? 'Q' : (num === 13) ? 'K' : num;
                     c.innerText = displayNum;
+                    
                     c.onclick = () => isMyTurn && playCard(num, idx, myData.hand);
                     handDiv.appendChild(c);
                 });
