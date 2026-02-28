@@ -3,24 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ミニ大富豪 - 全員決着サバイバル版</title>
+    <title>ミニ大富豪 - スキルマスターズ</title>
     <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        :root { --bg-color: #1a4a2e; --card-white: #fdfdfd; }
-        body { font-family: sans-serif; text-align: center; background: var(--bg-color); color: white; margin: 0; padding: 20px; }
+        :root { --bg-color: #1a4a2e; --card-white: #fdfdfd; --accent: #f1c40f; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background: var(--bg-color); color: white; margin: 0; padding: 20px; }
+        
+        /* スキルバッジ（左上固定） */
+        #my-skill-status {
+            position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.7); 
+            padding: 10px 15px; border-radius: 30px; font-size: 13px; 
+            border: 2px solid var(--accent); z-index: 1000; display: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
+        }
+
         .card { 
             display: inline-block; width: 65px; height: 95px; background: var(--card-white); color: #333;
             border-radius: 8px; margin: 5px; line-height: 95px; font-size: 24px; font-weight: bold;
             border: 2px solid #000; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); cursor: pointer; transition: 0.3s;
         }
         .card:not(.turn-highlight) { opacity: 0.4; cursor: default; transform: scale(0.9); }
-        .turn-highlight { border: 4px solid #f1c40f; box-shadow: 0 0 15px #f1c40f; opacity: 1 !important; transform: translateY(-10px) scale(1.1); }
+        .turn-highlight { border: 4px solid var(--accent); box-shadow: 0 0 15px var(--accent); opacity: 1 !important; transform: translateY(-10px) scale(1.1); }
         
         .skill-container { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
         .skill-card { width: 120px; padding: 10px; background: #fff; color: #333; border-radius: 10px; border: 3px solid #ccc; cursor: pointer; transition: 0.3s; }
-        .skill-card.selected { border-color: #f1c40f; box-shadow: 0 0 15px #f1c40f; background: #fffbe6; transform: scale(1.05); }
+        .skill-card.selected { border-color: var(--accent); box-shadow: 0 0 15px var(--accent); background: #fffbe6; transform: scale(1.05); }
         .skill-name { font-weight: bold; font-size: 14px; display: block; margin-bottom: 5px; color: #d35400; }
         .skill-desc { font-size: 10px; color: #666; display: block; line-height: 1.2; }
 
@@ -33,6 +42,11 @@
 </head>
 <body>
 
+    <div id="my-skill-status">
+        🛡️ <span id="status-skill-name" style="color: var(--accent); font-weight: bold;">---</span>
+        <div id="status-skill-desc" style="font-size: 9px; color: #ccc; margin-top: 2px;"></div>
+    </div>
+
     <div id="login-screen" class="screen active">
         <h1>🃏 ミニ大富豪</h1>
         <input type="text" id="user-name" placeholder="名前を入力"><br>
@@ -42,15 +56,15 @@
     </div>
 
     <div id="wait-screen" class="screen">
-        <h2 id="wait-msg">接続中...</h2>
+        <h2 id="wait-msg">参加者待機中...</h2>
         <div id="qr-area" style="display:flex; justify-content:center; margin:20px;"></div>
         <p id="player-list">参加者: 待機中...</p>
         <button id="start-btn" style="display:none;" onclick="startGame()">開始</button>
     </div>
 
     <div id="play-screen" class="screen">
-        <div id="timer-display" style="color:#ff6b6b; font-weight:bold; height:30px;"></div>
-        <p id="rank-info" style="color: #f1c40f;"></p>
+        <div id="timer-display" style="color:#ff6b6b; font-weight:bold; height:30px; margin-top: 40px;"></div>
+        <p id="rank-info" style="color: var(--accent);"></p>
         <p>【場のカード】</p>
         <div id="table-card" class="card">ー</div>
         <div id="turn-info" style="margin:10px; font-weight:bold;"></div>
@@ -60,15 +74,15 @@
     </div>
 
     <div id="result-screen" class="screen">
-        <h1>🎉 全員終了 🎉</h1>
-        <div id="ranking-list" style="font-size:20px; line-height: 2;"></div>
+        <h1>🎉 ゲーム終了 🎉</h1>
+        <div id="ranking-list" style="font-size:24px; line-height: 2; margin-bottom: 20px;"></div>
         <button onclick="location.reload()">もう一度遊ぶ</button>
     </div>
 
     <button onclick="adminReset()" style="position:fixed; bottom:5px; right:5px; opacity:0.3; font-size:10px; background:#000; color:#fff;">管理者リセット</button>
 
 <script>
-    // --- Firebase設定 (あなたのものに置き換えてください) ---
+    // --- Firebase設定 ---
     const firebaseConfig = {
         apiKey: "AIzaSyAa1CZBgLYViSMKhg-9D33EZUQwXENFwzo",
         authDomain: "game-496d3.firebaseapp.com",
@@ -87,7 +101,7 @@
     let mySkill = "none";
     let isHost = false;
     let kickTimer;
-    let lastOutCount = 0; // 強欲な壺用：これまでに何人上がったか
+    let lastOutCount = 0;
 
     const SKILLS_DATA = [
         { id: "none", name: "俺は強いぜ", desc: "実力のみで戦うスタイル。" },
@@ -150,37 +164,39 @@
 
         roomRef.on('value', (snap) => {
             const data = snap.val();
-
-            // ★ 追加：データが空、またはplayersが存在しない場合は処理を中断する
-            if (!data || !data.players) {
-                console.log("データの読み込み待ち、またはリセットされました。");
-                return; 
-            }
+            if (!data || !data.players) return;
 
             const players = data.players;
             const winners = data.winners || [];
 
-            // 強欲な壺の判定
+            // 強欲な壺の処理
             if (mySkill === 'greed' && winners.length > lastOutCount && players[myId] && !players[myId].isOut) {
                 const myHand = [...(players[myId].hand || [])];
                 if (myHand.length > 0) {
                     myHand.splice(0, 1);
                     roomRef.child('players').child(myId).update({ hand: myHand });
-                    alert("強欲な壺発動！誰かが上がったので手札を1枚捨てました。");
+                    alert("強欲な壺発動！手札が1枚減りました。");
                     if (myHand.length === 0) handleWin(data);
                 }
-                lastOutCount = winners.length;
-            } else {
-                lastOutCount = winners.length;
             }
+            lastOutCount = winners.length;
 
             const pKeys = Object.keys(players);
-            document.getElementById('player-list').innerText = "参加者: " + pKeys.map(k => players[k].name).join(", ");
+            // 他のプレイヤーのスキルもうっすら表示するアイデア
+            document.getElementById('player-list').innerText = "参加者: " + pKeys.map(k => {
+                const s = SKILLS_DATA.find(sd => sd.id === players[k].skill);
+                return `${players[k].name}(${s ? s.name : ''})`;
+            }).join(", ");
             
             if (data.state === 'playing') {
-                // 自分がすでに上がっているかチェック
+                // 左上のスキルバッジを表示・更新
+                document.getElementById('my-skill-status').style.display = "block";
+                const skillInfo = SKILLS_DATA.find(s => s.id === mySkill);
+                document.getElementById('status-skill-name').innerText = skillInfo ? skillInfo.name : "なし";
+                document.getElementById('status-skill-desc').innerText = skillInfo ? skillInfo.desc : "";
+
                 if (players[myId] && players[myId].isOut) {
-                    document.getElementById('wait-screen').classList.remove('active'); // 待機画面を消す
+                    document.getElementById('wait-screen').classList.remove('active');
                     document.getElementById('play-screen').classList.add('active');
                     document.getElementById('turn-info').innerText = "あなたはあがりました。観戦中...";
                     document.getElementById('my-hand').innerHTML = "";
@@ -189,7 +205,10 @@
                     showPlayScreen(data);
                 }
             }
-            if (data.state === 'finished') showResultScreen(winners, players);
+            if (data.state === 'finished') {
+                document.getElementById('my-skill-status').style.display = "none";
+                showResultScreen(winners, players);
+            }
         });
     }
 
@@ -197,6 +216,7 @@
         roomRef.child('players').once('value', (snap) => {
             const players = snap.val();
             const ids = Object.keys(players);
+            if (ids.length < 2) { alert("2人以上必要です"); return; }
             let deck = [];
             for (let i = 1; i <= 13; i++) for (let j = 0; j < 4; j++) deck.push(i);
             deck.sort(() => Math.random() - 0.5);
@@ -243,7 +263,6 @@
         roomRef.once('value', (snap) => {
             const data = snap.val();
             hand.splice(idx, 1);
-            
             let nextCard = num;
             let nextShooter = myId;
             let nextId;
@@ -267,20 +286,19 @@
     function handleWin(data, nextId, nextCard, nextShooter) {
         const winners = data.winners || [];
         winners.push(myName);
-        
-        // まだ残っているプレイヤーの数を確認
         const activePlayers = Object.keys(data.players).filter(id => id !== myId && !data.players[id].isOut);
         
-        if (activePlayers.length === 0) {
-            // 全員終了
+        if (activePlayers.length <= 1) {
+            if (activePlayers.length === 1) {
+                winners.push(data.players[activePlayers[0]].name);
+            }
             roomRef.child('players').child(myId).update({ hand: [], isOut: true });
             roomRef.update({ winners: winners, state: 'finished' });
         } else {
-            // まだ続く。自分をスキップする次の人を計算
             if (!nextId) nextId = getNextPlayerId(data.players, myId); 
             roomRef.child('players').child(myId).update({ hand: [], isOut: true });
             roomRef.update({ winners: winners, turnPlayer: nextId, tableCard: nextCard || 0, lastShooter: nextShooter || "" });
-            alert("あがり！他の人の対戦を待っています...");
+            alert("あがり！");
         }
     }
 
@@ -329,24 +347,15 @@
     function stopTimer() { clearTimeout(kickTimer); document.getElementById('timer-display').innerText = ""; }
 
     function showResultScreen(winners, players) {
-        // ★ 追加：playersデータがなければ処理しない
-        if (!players) return;
-
         document.getElementById('play-screen').classList.remove('active');
         document.getElementById('result-screen').classList.add('active');
         const list = document.getElementById('ranking-list');
         
-        // 順位表示
-        let html = winners.map((name, i) => `<div>${i+1}位: ${name} 🎉</div>`).join("");
-        
-        // ドベ（最後の一人）を特定して表示
-        const allIds = Object.keys(players);
-        const lastId = allIds.find(id => !players[id].isOut);
-        
-        if (lastId && players[lastId]) {
-            html += `<div style="margin-top:20px; color: #aaa;">ドベ: ${players[lastId].name} 🃏</div>`;
-        }
-        
+        let html = "";
+        winners.forEach((name, i) => {
+            let crown = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "🎖️";
+            html += `<div>${crown} ${i+1}位: ${name}</div>`;
+        });
         list.innerHTML = html;
     }
 
