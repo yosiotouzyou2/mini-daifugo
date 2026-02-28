@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ミニ大富豪 - スキル・決戦</title>
+    <title>ミニ大富豪 - スキルマスターズ</title>
     <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -11,38 +11,48 @@
         :root { --bg-color: #1a4a2e; --card-white: #fdfdfd; --accent: #f1c40f; }
         body { font-family: sans-serif; text-align: center; background: var(--bg-color); color: white; margin: 0; padding: 20px; overflow-x: hidden; }
         
+        /* ★スマホ対応！スキル発動カットインの修正 */
         #skill-cutin {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
-            background: rgba(241, 196, 15, 0.9); color: #000; padding: 20px 40px;
-            font-size: 32px; font-weight: bold; border-radius: 50px; z-index: 2000;
+            position: fixed; top: 50%; left: 50%; 
+            transform: translate(-50%, -50%) scale(0);
+            background: rgba(241, 196, 15, 0.95); color: #000; 
+            padding: 15px 20px;
+            font-size: 22px; /* スマホ向けに少し小さく */
+            font-weight: bold; border-radius: 15px; z-index: 2000;
             pointer-events: none; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 0 30px rgba(0,0,0,0.5); white-space: nowrap;
+            box-shadow: 0 0 30px rgba(0,0,0,0.6);
+            width: 85%; /* 画面からはみ出さない */
+            max-width: 400px;
+            box-sizing: border-box;
+            white-space: normal; /* 折り返しを許可 */
+            line-height: 1.4;
         }
-        #skill-cutin.show { transform: translate(-50%, -50%) scale(1.2); }
+        #skill-cutin.show { transform: translate(-50%, -50%) scale(1); }
 
+        /* 左上のスキル状態表示 */
         #my-skill-status {
-            position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.7); 
-            padding: 8px 15px; border-radius: 20px; font-size: 12px; border: 1px solid var(--accent); z-index: 1000;
-            display: none; text-align: left;
+            position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.8); 
+            padding: 8px 12px; border-radius: 15px; font-size: 11px; border: 1px solid var(--accent); z-index: 1000;
+            display: none; text-align: left; max-width: 150px;
         }
 
         .card { 
-            display: inline-block; width: 65px; height: 95px; background: var(--card-white); color: #333;
-            border-radius: 8px; margin: 5px; line-height: 95px; font-size: 24px; font-weight: bold;
-            border: 2px solid #000; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); cursor: pointer; transition: 0.3s;
+            display: inline-block; width: 60px; height: 88px; background: var(--card-white); color: #333;
+            border-radius: 8px; margin: 4px; line-height: 88px; font-size: 22px; font-weight: bold;
+            border: 2px solid #000; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); cursor: pointer; transition: 0.2s;
         }
         .card:not(.turn-highlight) { opacity: 0.4; cursor: default; transform: scale(0.9); }
-        .turn-highlight { border: 4px solid var(--accent); box-shadow: 0 0 15px var(--accent); opacity: 1 !important; transform: translateY(-10px) scale(1.1); }
+        .turn-highlight { border: 3px solid var(--accent); box-shadow: 0 0 10px var(--accent); opacity: 1 !important; transform: translateY(-5px); }
         
-        .skill-card { width: 120px; padding: 10px; background: #fff; color: #333; border-radius: 10px; border: 3px solid #ccc; cursor: pointer; margin: 5px; display: inline-block; }
+        .skill-card { width: 110px; padding: 8px; background: #fff; color: #333; border-radius: 10px; border: 3px solid #ccc; cursor: pointer; margin: 4px; display: inline-block; vertical-align: top;}
         .skill-card.selected { border-color: var(--accent); background: #fffbe6; transform: scale(1.05); }
 
         .screen { display: none; }
         .active { display: block; }
-        #table-card { transform: scale(1.2); background: #ffeb3b; margin: 20px auto; opacity: 1 !important; }
-        button { padding: 12px 24px; font-size: 16px; border-radius: 5px; border: none; background: #e67e22; color: white; cursor: pointer; margin: 5px; }
-        button:disabled { background: #777; cursor: not-allowed; opacity: 0.5; }
-        input { padding: 10px; font-size: 16px; border-radius: 5px; border: none; }
+        #table-card { transform: scale(1.1); background: #ffeb3b; margin: 15px auto; opacity: 1 !important; }
+        button { padding: 12px 20px; font-size: 16px; border-radius: 8px; border: none; background: #e67e22; color: white; cursor: pointer; margin: 5px; }
+        button:disabled { background: #777; opacity: 0.5; cursor: not-allowed; }
+        input { padding: 10px; font-size: 16px; border-radius: 5px; border: 1px solid #ccc; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -56,32 +66,32 @@
 
     <div id="login-screen" class="screen active">
         <h1>🃏 ミニ大富豪</h1>
-        <input type="text" id="user-name" placeholder="名前を入力"><br>
-        <p>【パッシブスキルを選択】</p>
-        <div id="skill-list" style="margin: 15px 0;"></div>
+        <input type="text" id="user-name" placeholder="名前を入力" maxlength="8"><br>
+        <p style="font-size:14px;">【パッシブスキルを選択】</p>
+        <div id="skill-list" style="margin: 10px 0;"></div>
         <button onclick="checkRole()">ゲームに参加</button>
     </div>
 
     <div id="wait-screen" class="screen">
         <h2>参加者待機中...</h2>
-        <div id="qr-area" style="display:flex; justify-content:center; margin:20px;"></div>
-        <p id="player-list"></p>
+        <div id="qr-area" style="display:flex; justify-content:center; margin:15px;"></div>
+        <p id="player-list" style="font-size:14px;"></p>
         <button id="start-btn" style="display:none;" onclick="startGame()">開始</button>
     </div>
 
     <div id="play-screen" class="screen">
-        <div id="timer-display" style="color:#ff6b6b; font-weight:bold; height:30px; margin-top: 40px;"></div>
+        <div id="timer-display" style="color:#ff6b6b; font-weight:bold; height:25px; margin-top: 45px; font-size:14px;"></div>
         <div id="table-card" class="card">ー</div>
-        <div id="turn-info" style="margin:10px; font-weight:bold;"></div>
-        <div id="pass-hint" style="font-size: 11px; color: #ffeb3b; height: 15px;"></div>
+        <div id="turn-info" style="margin:8px; font-size:14px; font-weight:bold;"></div>
+        <div id="pass-hint" style="font-size: 10px; color: #ffeb3b; height: 14px; margin-bottom:5px;"></div>
         <hr>
         <div id="my-hand"></div><br>
         <button id="pass-btn" onclick="passTurn()">パスする</button>
     </div>
 
     <div id="result-screen" class="screen">
-        <h1>🎉 全員終了 🎉</h1>
-        <div id="ranking-list" style="font-size:22px; line-height: 2;"></div>
+        <h1>🎉 ゲーム終了 🎉</h1>
+        <div id="ranking-list" style="font-size:18px; line-height: 2.2;"></div>
         <button onclick="location.reload()">もう一度遊ぶ</button>
     </div>
 
@@ -123,7 +133,7 @@
         SKILLS_DATA.forEach(skill => {
             const div = document.createElement('div');
             div.className = 'skill-card' + (skill.id === "none" ? ' selected' : '');
-            div.innerHTML = `<span style="font-weight:bold; font-size:14px;">${skill.name}</span><br><span style="font-size:10px; color:#666;">${skill.desc}</span>`;
+            div.innerHTML = `<span style="font-weight:bold; font-size:12px;">${skill.name}</span><br><span style="font-size:9px; color:#666;">${skill.desc}</span>`;
             div.onclick = () => {
                 mySkill = skill.id;
                 document.querySelectorAll('.skill-card').forEach(c => c.classList.remove('selected'));
@@ -179,13 +189,13 @@
                 if (myHand.length > 0) {
                     myHand.splice(0, 1);
                     roomRef.child('players').child(myId).update({ hand: myHand });
-                    roomRef.update({ lastSkill: `強欲な壺！手札減少 (${myName})`, lastEffectId: Math.random() });
+                    roomRef.update({ lastSkill: `強欲な壺！ (${myName})`, lastEffectId: Math.random() });
                     if (myHand.length === 0) handleWin(data);
                 }
             }
             lastOutCount = winners.length;
 
-            document.getElementById('player-list').innerText = "参加者: " + Object.keys(players).map(k => k === myId ? players[k].name + " (あなた)" : players[k].name).join(", ");
+            document.getElementById('player-list').innerText = "参加者: " + Object.keys(players).map(k => k === myId ? players[k].name + " (自分)" : players[k].name).join(", ");
             
             if (data.state === 'playing') {
                 document.getElementById('my-skill-status').style.display = "block";
@@ -196,7 +206,7 @@
                 if (players[myId] && players[myId].isOut) {
                     document.getElementById('wait-screen').classList.remove('active');
                     document.getElementById('play-screen').classList.add('active');
-                    document.getElementById('turn-info').innerText = "あなたはあがりました。観戦中...";
+                    document.getElementById('turn-info').innerText = "あがりました！観戦中...";
                     document.getElementById('my-hand').innerHTML = "";
                     document.getElementById('pass-btn').disabled = true;
                     document.getElementById('pass-hint').innerText = "";
@@ -227,7 +237,6 @@
         });
     }
 
-    // 出せるカードがあるかチェックする関数
     function canPlayAny(hand, top) {
         return hand.some(num => {
             if (top === 0) return true;
@@ -247,8 +256,6 @@
         
         const myHand = data.players[myId].hand || [];
         const top = data.tableCard || 0;
-
-        // ★ 戦略的パス禁止ロジック
         const canIPlay = canPlayAny(myHand, top);
         const passBtn = document.getElementById('pass-btn');
         const passHint = document.getElementById('pass-hint');
@@ -257,10 +264,10 @@
             startTimer();
             if (canIPlay) {
                 passBtn.disabled = true;
-                passHint.innerText = "出せるカードがあるためパスできません";
+                passHint.innerText = "出せるカードがあります";
             } else {
                 passBtn.disabled = false;
-                passHint.innerText = "出せるカードがないのでパスできます";
+                passHint.innerText = "出せるカードがありません";
             }
         } else {
             stopTimer();
@@ -325,7 +332,7 @@
             const data = snap.val();
             const myHand = [...(data.players[myId].hand || [])];
             if (mySkill === "curse") {
-                roomRef.update({ lastSkill: `呪い！全員ドロー (${myName})`, lastEffectId: Math.random() });
+                roomRef.update({ lastSkill: `呪い発動！ (${myName})`, lastEffectId: Math.random() });
                 Object.keys(data.players).forEach(pId => {
                     if (pId !== myId && !data.players[pId].isOut) {
                         const h = [...(data.players[pId].hand || []), Math.floor(Math.random() * 13) + 1].sort((a,b)=>a-b);
@@ -336,7 +343,7 @@
             if (mySkill === "lucky" && Math.random() < 0.2 && myHand.length > 0) {
                 myHand.splice(0, 1);
                 roomRef.child('players').child(myId).update({ hand: myHand });
-                roomRef.update({ lastSkill: `幸運！手札減少 (${myName})`, lastEffectId: Math.random() });
+                roomRef.update({ lastSkill: `幸運発動！ (${myName})`, lastEffectId: Math.random() });
                 if (myHand.length === 0) { handleWin(data); return; }
             }
             const nextId = getNextPlayerId(data.players, myId);
