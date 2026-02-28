@@ -3,56 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ミニ大富豪 - スキルマスターズ</title>
+    <title>ミニ大富豪 - カスタムエディション</title>
     <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root { --bg-color: #1a4a2e; --card-white: #fdfdfd; --accent: #f1c40f; }
-        body { font-family: sans-serif; text-align: center; background: var(--bg-color); color: white; margin: 0; padding: 20px; overflow-x: hidden; }
+        body { font-family: sans-serif; text-align: center; background: var(--bg-color); color: white; margin: 0; padding: 10px; overflow-x: hidden; }
         
-        /* ★スマホ対応！スキル発動カットインの修正 */
         #skill-cutin {
-            position: fixed; top: 50%; left: 50%; 
-            transform: translate(-50%, -50%) scale(0);
-            background: rgba(241, 196, 15, 0.95); color: #000; 
-            padding: 15px 20px;
-            font-size: 22px; /* スマホ向けに少し小さく */
-            font-weight: bold; border-radius: 15px; z-index: 2000;
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
+            background: rgba(241, 196, 15, 0.95); color: #000; padding: 15px 20px;
+            font-size: 20px; font-weight: bold; border-radius: 15px; z-index: 2000;
             pointer-events: none; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 0 30px rgba(0,0,0,0.6);
-            width: 85%; /* 画面からはみ出さない */
-            max-width: 400px;
-            box-sizing: border-box;
-            white-space: normal; /* 折り返しを許可 */
-            line-height: 1.4;
+            box-shadow: 0 0 30px rgba(0,0,0,0.6); width: 85%; max-width: 350px; box-sizing: border-box;
         }
         #skill-cutin.show { transform: translate(-50%, -50%) scale(1); }
 
-        /* 左上のスキル状態表示 */
         #my-skill-status {
             position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.8); 
             padding: 8px 12px; border-radius: 15px; font-size: 11px; border: 1px solid var(--accent); z-index: 1000;
-            display: none; text-align: left; max-width: 150px;
+            display: none; text-align: left; max-width: 140px;
         }
 
         .card { 
-            display: inline-block; width: 60px; height: 88px; background: var(--card-white); color: #333;
-            border-radius: 8px; margin: 4px; line-height: 88px; font-size: 22px; font-weight: bold;
+            display: inline-block; width: 58px; height: 85px; background: var(--card-white); color: #333;
+            border-radius: 8px; margin: 3px; line-height: 85px; font-size: 20px; font-weight: bold;
             border: 2px solid #000; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); cursor: pointer; transition: 0.2s;
         }
-        .card:not(.turn-highlight) { opacity: 0.4; cursor: default; transform: scale(0.9); }
+        .card:not(.turn-highlight) { opacity: 0.4; transform: scale(0.9); }
         .turn-highlight { border: 3px solid var(--accent); box-shadow: 0 0 10px var(--accent); opacity: 1 !important; transform: translateY(-5px); }
         
-        .skill-card { width: 110px; padding: 8px; background: #fff; color: #333; border-radius: 10px; border: 3px solid #ccc; cursor: pointer; margin: 4px; display: inline-block; vertical-align: top;}
+        .skill-card { width: 100px; padding: 8px; background: #fff; color: #333; border-radius: 10px; border: 3px solid #ccc; cursor: pointer; margin: 4px; display: inline-block; vertical-align: top; }
         .skill-card.selected { border-color: var(--accent); background: #fffbe6; transform: scale(1.05); }
 
         .screen { display: none; }
         .active { display: block; }
         #table-card { transform: scale(1.1); background: #ffeb3b; margin: 15px auto; opacity: 1 !important; }
         button { padding: 12px 20px; font-size: 16px; border-radius: 8px; border: none; background: #e67e22; color: white; cursor: pointer; margin: 5px; }
-        button:disabled { background: #777; opacity: 0.5; cursor: not-allowed; }
-        input { padding: 10px; font-size: 16px; border-radius: 5px; border: 1px solid #ccc; margin-bottom: 10px; }
+        button:disabled { background: #777; opacity: 0.5; }
+        
+        .host-config { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin: 10px auto; max-width: 300px; }
     </style>
 </head>
 <body>
@@ -67,16 +58,22 @@
     <div id="login-screen" class="screen active">
         <h1>🃏 ミニ大富豪</h1>
         <input type="text" id="user-name" placeholder="名前を入力" maxlength="8"><br>
-        <p style="font-size:14px;">【パッシブスキルを選択】</p>
-        <div id="skill-list" style="margin: 10px 0;"></div>
+        <p style="font-size:14px;">【スキルを選択】</p>
+        <div id="skill-list"></div>
         <button onclick="checkRole()">ゲームに参加</button>
     </div>
 
     <div id="wait-screen" class="screen">
-        <h2>参加者待機中...</h2>
+        <h2>待機中...</h2>
         <div id="qr-area" style="display:flex; justify-content:center; margin:15px;"></div>
+        
+        <div id="host-controls" style="display:none;" class="host-config">
+            <p style="margin:0 0 10px 0; font-size:14px;">配る枚数: <span id="hand-size-val">6</span>枚</p>
+            <input type="range" id="hand-size-slider" min="4" max="9" value="6" oninput="document.getElementById('hand-size-val').innerText=this.value" style="width:100%;">
+            <button id="start-btn" onclick="startGame()" style="width:100%; margin-top:10px;">ゲーム開始</button>
+        </div>
+        
         <p id="player-list" style="font-size:14px;"></p>
-        <button id="start-btn" style="display:none;" onclick="startGame()">開始</button>
     </div>
 
     <div id="play-screen" class="screen">
@@ -95,10 +92,9 @@
         <button onclick="location.reload()">もう一度遊ぶ</button>
     </div>
 
-    <button onclick="adminReset()" style="position:fixed; bottom:5px; right:5px; opacity:0.2; font-size:10px; background:#000; color:#fff;">リセット</button>
+    <button onclick="adminReset()" style="position:fixed; bottom:5px; right:5px; opacity:0.1; font-size:10px; background:#000; color:#fff;">リセット</button>
 
 <script>
-    // --- Firebase設定 ---
     const firebaseConfig = {
         apiKey: "AIzaSyAa1CZBgLYViSMKhg-9D33EZUQwXENFwzo",
         authDomain: "game-496d3.firebaseapp.com",
@@ -122,7 +118,7 @@
     const SKILLS_DATA = [
         { id: "none", name: "俺は強いぜ", desc: "実力のみで戦う。" },
         { id: "eightMaster", name: "8切り職人", desc: "8で場を流す。" },
-        { id: "curse", name: "復讐の呪い", desc: "パスで他全員+1枚。" },
+        { id: "curse", name: "復讐の呪い", desc: "パス時40%で全員+1枚。" },
         { id: "greed", name: "強欲な壺", desc: "誰かがあがると手札-1枚。" },
         { id: "antiTwo", name: "下克上の英雄", desc: "3で2を倒せる。" },
         { id: "lucky", name: "幸運の守護", desc: "パス時20%で手札-1枚。" }
@@ -146,8 +142,7 @@
 
     function showSkillEffect(text) {
         const el = document.getElementById('skill-cutin');
-        el.innerText = text;
-        el.classList.add('show');
+        el.innerText = text; el.classList.add('show');
         setTimeout(() => el.classList.remove('show'), 1500);
     }
 
@@ -159,7 +154,7 @@
             isHost = true;
             await roomRef.set({ state: 'waiting', tableCard: 0, winners: [], players: {}, lastSkill: "" });
             new QRCode(document.getElementById("qr-area"), window.location.href);
-            document.getElementById('start-btn').style.display = "inline-block";
+            document.getElementById('host-controls').style.display = "block";
         }
         joinGame();
     }
@@ -175,7 +170,6 @@
         roomRef.on('value', (snap) => {
             const data = snap.val();
             if (!data || !data.players) return;
-
             const players = data.players;
             const winners = data.winners || [];
 
@@ -202,38 +196,40 @@
                 const s = SKILLS_DATA.find(sd => sd.id === mySkill);
                 document.getElementById('status-skill-name').innerText = s.name;
                 document.getElementById('status-skill-desc').innerText = s.desc;
-
                 if (players[myId] && players[myId].isOut) {
                     document.getElementById('wait-screen').classList.remove('active');
                     document.getElementById('play-screen').classList.add('active');
                     document.getElementById('turn-info').innerText = "あがりました！観戦中...";
                     document.getElementById('my-hand').innerHTML = "";
                     document.getElementById('pass-btn').disabled = true;
-                    document.getElementById('pass-hint').innerText = "";
                 } else {
                     showPlayScreen(data);
                 }
             }
             if (data.state === 'finished') {
                 document.getElementById('my-skill-status').style.display = "none";
-                showResultScreen(winners, players);
+                showResultScreen(winners);
             }
         });
     }
 
     function startGame() {
+        const handSize = parseInt(document.getElementById('hand-size-slider').value);
         roomRef.child('players').once('value', (snap) => {
             const players = snap.val();
             const ids = Object.keys(players);
             if (ids.length < 2) { alert("2人以上必要です"); return; }
-            let deck = [];
-            for (let i = 1; i <= 13; i++) for (let j = 0; j < 4; j++) deck.push(i);
-            deck.sort(() => Math.random() - 0.5);
+            
+            // ★ 配布ロジック：デッキを使わず、各プレイヤーに完全ランダムな数値を生成
             ids.forEach(id => {
-                let hand = deck.splice(0, 6).sort((a, b) => a - b);
-                roomRef.child('players').child(id).update({ hand: hand, isOut: false });
+                let randomHand = [];
+                for (let i = 0; i < handSize; i++) {
+                    randomHand.push(Math.floor(Math.random() * 13) + 1);
+                }
+                randomHand.sort((a, b) => a - b);
+                roomRef.child('players').child(id).update({ hand: randomHand, isOut: false });
             });
-            roomRef.update({ state: 'playing', tableCard: 0, turnPlayer: ids[0], lastShooter: "", winners: [], lastSkill: "ゲーム開始！", lastEffectId: Math.random() });
+            roomRef.update({ state: 'playing', tableCard: 0, turnPlayer: ids[0], lastShooter: "", winners: [], lastSkill: `${handSize}枚ずつで開始！`, lastEffectId: Math.random() });
         });
     }
 
@@ -262,17 +258,10 @@
 
         if (isMyTurn) {
             startTimer();
-            if (canIPlay) {
-                passBtn.disabled = true;
-                passHint.innerText = "出せるカードがあります";
-            } else {
-                passBtn.disabled = false;
-                passHint.innerText = "出せるカードがありません";
-            }
+            if (canIPlay) { passBtn.disabled = true; passHint.innerText = "出せるカードがあります"; } 
+            else { passBtn.disabled = false; passHint.innerText = "出せるカードがありません"; }
         } else {
-            stopTimer();
-            passBtn.disabled = true;
-            passHint.innerText = "";
+            stopTimer(); passBtn.disabled = true; passHint.innerText = "";
         }
 
         const handDiv = document.getElementById('my-hand');
@@ -301,9 +290,7 @@
             if (mySkill === "eightMaster" && num === 8) {
                 roomRef.update({ lastSkill: `8切り！ (${myName})`, lastEffectId: Math.random() });
                 nextId = myId; nextCard = 0; nextShooter = "";
-            } else {
-                nextId = getNextPlayerId(data.players, myId);
-            }
+            } else { nextId = getNextPlayerId(data.players, myId); }
             if (hand.length === 0) handleWin(data, nextId, nextCard, nextShooter);
             else {
                 roomRef.child('players').child(myId).update({ hand: hand });
@@ -313,8 +300,7 @@
     }
 
     function handleWin(data, nextId, nextCard, nextShooter) {
-        const winners = data.winners || [];
-        winners.push(myName);
+        const winners = data.winners || []; winners.push(myName);
         const activePlayers = Object.keys(data.players).filter(id => id !== myId && !data.players[id].isOut);
         if (activePlayers.length <= 1) {
             if (activePlayers.length === 1) winners.push(data.players[activePlayers[0]].name);
@@ -332,13 +318,15 @@
             const data = snap.val();
             const myHand = [...(data.players[myId].hand || [])];
             if (mySkill === "curse") {
-                roomRef.update({ lastSkill: `呪い発動！ (${myName})`, lastEffectId: Math.random() });
-                Object.keys(data.players).forEach(pId => {
-                    if (pId !== myId && !data.players[pId].isOut) {
-                        const h = [...(data.players[pId].hand || []), Math.floor(Math.random() * 13) + 1].sort((a,b)=>a-b);
-                        roomRef.child('players').child(pId).update({ hand: h });
-                    }
-                });
+                if (Math.random() < 0.4) {
+                    roomRef.update({ lastSkill: `呪い成功！ (${myName})`, lastEffectId: Math.random() });
+                    Object.keys(data.players).forEach(pId => {
+                        if (pId !== myId && !data.players[pId].isOut) {
+                            const h = [...(data.players[pId].hand || []), Math.floor(Math.random() * 13) + 1].sort((a,b)=>a-b);
+                            roomRef.child('players').child(pId).update({ hand: h });
+                        }
+                    });
+                } else { roomRef.update({ lastSkill: `呪い失敗... (${myName})`, lastEffectId: Math.random() }); }
             }
             if (mySkill === "lucky" && Math.random() < 0.2 && myHand.length > 0) {
                 myHand.splice(0, 1);
@@ -364,13 +352,11 @@
 
     function startTimer() { stopTimer(); kickTimer = setTimeout(() => { passTurn(); roomRef.child('players').child(myId).remove(); location.reload(); }, 45000); }
     function stopTimer() { clearTimeout(kickTimer); }
-
-    function showResultScreen(winners, players) {
+    function showResultScreen(winners) {
         document.getElementById('play-screen').classList.remove('active');
         document.getElementById('result-screen').classList.add('active');
         document.getElementById('ranking-list').innerHTML = winners.map((name, i) => `<div>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'🎖️'} ${i+1}位: ${name}</div>`).join("");
     }
-
     function toDisp(num) { const map = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K', 0: 'ー' }; return map[num] || num; }
     function getRank(num) { return num === 1 ? 14 : num === 2 ? 15 : num; }
     function adminReset() { if (prompt("PASS") === "1204") roomRef.remove().then(() => location.reload()); }
