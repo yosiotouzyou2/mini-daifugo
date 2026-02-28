@@ -121,7 +121,8 @@
         { id: "curse", name: "復讐の呪い", desc: "パス時40%で全員+1枚。" },
         { id: "greed", name: "強欲な壺", desc: "誰かがあがると手札-1枚。" },
         { id: "antiTwo", name: "下克上の英雄", desc: "3で2を倒せる。" },
-        { id: "lucky", name: "幸運の守護", desc: "パス時20%で手札-1枚。" }
+        { id: "lucky", name: "幸運の守護", desc: "パス時20%で手札-1枚。" },
+        { id: "burster", name: "オーバーフロー", desc: "初期+4枚で勝利。パス時30%で自分+1枚。" }
     ];
 
     function initSkillUI() {
@@ -160,52 +161,107 @@
     }
 
     function joinGame() {
-        roomRef.child('players').child(myId).set({ name: myName, hand: [0], skill: mySkill, isOut: false });
+        // Firebaseにプレイヤーデータを登録
+        roomRef.child('players').child(myId).set({ 
+            name: myName, 
+            hand: [0], 
+            skill: mySkill, 
+            isOut: false 
+        });
+        
+        // 切断時の自動削除設定
         roomRef.child('players').child(myId).onDisconnect().remove();
         if (isHost) roomRef.onDisconnect().remove();
 
+        // 画面切り替え
         document.getElementById('login-screen').classList.remove('active');
         document.getElementById('wait-screen').classList.add('active');
 
+        // データベースのリアルタイム監視
         roomRef.on('value', (snap) => {
             const data = snap.val();
-            if (!data || !data.players) return;
+            if (!data || !data.players || !data.players[myId]) return;
+
             const players = data.players;
             const winners = data.winners || [];
+            const myData = players[myId];
+            const myHand = myData.hand || [];
+            const handSizeLimit = (data.handSize || 6) + 4; // バーストの基準枚数
 
+            // --- ①【最優先】勝利判定ロジック ---
+            if (!myData.isOut && data.state === 'playing') {
+                // A. バースト職（burster）専用：初期枚数+4枚で勝利
+                if (mySkill === "burster") {
+                    if (myHand.length >= handSizeLimit) {
+                        roomRef.update({ 
+                            lastSkill: `限界突破！バースト勝利 (${myName})`, 
+                            lastEffectId: Math.random() 
+                        });
+                        handleWin(data);
+                        return;
+                    }
+                } 
+                
+                // B. 通常勝利：手札が0枚になったら勝利
+                if (myHand.length === 0) {
+                    handleWin(data);
+                    return;
+                }
+            }
+
+            // --- ② スキル演出（カットイン）の表示 ---
             if (data.lastEffectId !== this.prevEffectId && data.lastSkill) {
                 showSkillEffect(data.lastSkill);
                 this.prevEffectId = data.lastEffectId;
             }
 
-            if (mySkill === 'greed' && winners.length > lastOutCount && players[myId] && !players[myId].isOut) {
-                const myHand = [...(players[myId].hand || [])];
-                if (myHand.length > 0) {
-                    myHand.splice(0, 1);
-                    roomRef.child('players').child(myId).update({ hand: myHand });
-                    roomRef.update({ lastSkill: `強欲な壺！ (${myName})`, lastEffectId: Math.random() });
-                    if (myHand.length === 0) handleWin(data);
+            // --- ③ パッシブスキル：強欲な壺（greed）の自動処理 ---
+            if (mySkill === 'greed' && winners.length > lastOutCount && !myData.isOut) {
+                const h = [...myHand];
+                if (h.length > 0) {
+                    h.splice(0, 1); // 1枚減らす
+                    roomRef.child('players').child(myId).update({ hand: h });
+                    roomRef.update({ 
+                        lastSkill: `強欲な壺！手札-1枚 (${myName})`, 
+                        lastEffectId: Math.random() 
+                    });
                 }
             }
             lastOutCount = winners.length;
 
-            document.getElementById('player-list').innerText = "参加者: " + Object.keys(players).map(k => k === myId ? players[k].name + " (自分)" : players[k].name).join(", ");
+            // --- ④ 参加者リストの更新 ---
+            document.getElementById('player-list').innerText = "参加者: " + 
+                Object.keys(players).map(k => k === myId ? players[k].name + " (自分)" : players[k].name).join(", ");
             
+            // --- ⑤ プレイ画面の制御 ---
             if (data.state === 'playing') {
+                // 左上のスキル状態を表示
                 document.getElementById('my-skill-status').style.display = "block";
                 const s = SKILLS_DATA.find(sd => sd.id === mySkill);
                 document.getElementById('status-skill-name').innerText = s.name;
-                document.getElementById('status-skill-desc').innerText = s.desc;
-                if (players[myId] && players[myId].isOut) {
+                
+                // スキルに応じた勝利目標の表示切り替え
+                if (mySkill === "burster") {
+                    document.getElementById('status-skill-desc').innerText = `目標：手札${handSizeLimit}枚で勝利`;
+                } else {
+                    document.getElementById('status-skill-desc').innerText = `目標：手札0枚で勝利`;
+                }
+
+                if (myData.isOut) {
+                    // あがった後の観戦モード
                     document.getElementById('wait-screen').classList.remove('active');
                     document.getElementById('play-screen').classList.add('active');
                     document.getElementById('turn-info').innerText = "あがりました！観戦中...";
                     document.getElementById('my-hand').innerHTML = "";
                     document.getElementById('pass-btn').disabled = true;
+                    document.getElementById('pass-hint').innerText = "";
                 } else {
+                    // 通常のプレイ画面描画
                     showPlayScreen(data);
                 }
             }
+
+            // --- ⑥ 結果画面の制御 ---
             if (data.state === 'finished') {
                 document.getElementById('my-skill-status').style.display = "none";
                 showResultScreen(winners);
@@ -229,7 +285,16 @@
                 randomHand.sort((a, b) => a - b);
                 roomRef.child('players').child(id).update({ hand: randomHand, isOut: false });
             });
-            roomRef.update({ state: 'playing', tableCard: 0, turnPlayer: ids[0], lastShooter: "", winners: [], lastSkill: `${handSize}枚ずつで開始！`, lastEffectId: Math.random() });
+            roomRef.update({ 
+                state: 'playing', 
+                tableCard: 0, 
+                turnPlayer: ids[0], 
+                lastShooter: "", 
+                winners: [], 
+                handSize: handSize,
+                lastSkill: `${handSize}枚で開始！+4枚でバースト勝利`, 
+                lastEffectId: Math.random() 
+            });
         });
     }
 
@@ -300,16 +365,27 @@
     }
 
     function handleWin(data, nextId, nextCard, nextShooter) {
-        const winners = data.winners || []; winners.push(myName);
+        const winners = data.winners || [];
+        // 二重登録防止
+        if (winners.includes(myName)) return;
+        
+        winners.push(myName);
         const activePlayers = Object.keys(data.players).filter(id => id !== myId && !data.players[id].isOut);
+        
         if (activePlayers.length <= 1) {
             if (activePlayers.length === 1) winners.push(data.players[activePlayers[0]].name);
             roomRef.child('players').child(myId).update({ hand: [], isOut: true });
             roomRef.update({ winners: winners, state: 'finished' });
         } else {
+            // 次のプレイヤーが指定されていない（バースト時など）場合は自動取得
             if (!nextId) nextId = getNextPlayerId(data.players, myId); 
             roomRef.child('players').child(myId).update({ hand: [], isOut: true });
-            roomRef.update({ winners: winners, turnPlayer: nextId, tableCard: nextCard || 0, lastShooter: nextShooter || "" });
+            roomRef.update({ 
+                winners: winners, 
+                turnPlayer: nextId, 
+                tableCard: nextCard || 0, 
+                lastShooter: nextShooter || "" 
+            });
         }
     }
 
@@ -317,23 +393,39 @@
         roomRef.once('value', (snap) => {
             const data = snap.val();
             const myHand = [...(data.players[myId].hand || [])];
+
+            // --- 1. 復讐の呪い（40%で全員+1枚） ---
             if (mySkill === "curse") {
                 if (Math.random() < 0.4) {
-                    roomRef.update({ lastSkill: `呪い成功！ (${myName})`, lastEffectId: Math.random() });
+                    roomRef.update({ lastSkill: `呪い成功！全員+1枚 (${myName})`, lastEffectId: Math.random() });
                     Object.keys(data.players).forEach(pId => {
                         if (pId !== myId && !data.players[pId].isOut) {
                             const h = [...(data.players[pId].hand || []), Math.floor(Math.random() * 13) + 1].sort((a,b)=>a-b);
                             roomRef.child('players').child(pId).update({ hand: h });
                         }
                     });
-                } else { roomRef.update({ lastSkill: `呪い失敗... (${myName})`, lastEffectId: Math.random() }); }
+                } else {
+                    roomRef.update({ lastSkill: `呪い失敗... (${myName})`, lastEffectId: Math.random() });
+                }
             }
+
+            // --- 2. 幸運の守護（20%で手札-1枚） ---
             if (mySkill === "lucky" && Math.random() < 0.2 && myHand.length > 0) {
                 myHand.splice(0, 1);
                 roomRef.child('players').child(myId).update({ hand: myHand });
-                roomRef.update({ lastSkill: `幸運発動！ (${myName})`, lastEffectId: Math.random() });
+                roomRef.update({ lastSkill: `幸運発動！手札-1枚 (${myName})`, lastEffectId: Math.random() });
                 if (myHand.length === 0) { handleWin(data); return; }
             }
+
+            // --- 3. ★新：暴走する魔力（30%で自分だけ+1枚：バースト加速） ---
+            if (mySkill === "burster" && Math.random() < 0.3) {
+                myHand.push(Math.floor(Math.random() * 13) + 1);
+                myHand.sort((a, b) => a - b);
+                roomRef.child('players').child(myId).update({ hand: myHand });
+                roomRef.update({ lastSkill: `魔力暴走！自分+1枚 (${myName})`, lastEffectId: Math.random() });
+                // バースト判定はjoinGame側で自動で行われるのでここでは何もしない
+            }
+
             const nextId = getNextPlayerId(data.players, myId);
             if (nextId === data.lastShooter) roomRef.update({ tableCard: 0, turnPlayer: nextId, lastShooter: "" });
             else roomRef.update({ turnPlayer: nextId });
