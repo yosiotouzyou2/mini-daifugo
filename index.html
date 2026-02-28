@@ -78,6 +78,14 @@
         let isHost = false;
         let inactivityTimer, kickTimer;
 
+        // 数字を大富豪の強さに変換する
+        function getRank(num) {
+            if (num === 0) return 0;  // 場が空の場合
+            if (num === 1) return 14; // Aは13(K)より強い
+            if (num === 2) return 15; // 2は最強
+            return num;               // 3〜13はそのままの数字
+        }
+
         async function checkRole() {
             myName = document.getElementById('user-name').value || "ななし";
             const snap = await roomRef.get();
@@ -150,6 +158,9 @@
         function showPlayScreen(data) {
             document.getElementById('wait-screen').classList.remove('active');
             document.getElementById('play-screen').classList.add('active');
+            const top = data.tableCard || 0;
+            const displayTop = (top === 1) ? 'A' : (top === 11) ? 'J' : (top === 12) ? 'Q' : (top === 13) ? 'K' : (top === 0) ? 'ー' : top;
+            document.getElementById('table-card').innerText = displayTop;
             document.getElementById('table-card').innerText = data.tableCard || "ー";
             
             const isMyTurn = (data.turnPlayer === myId);
@@ -169,7 +180,8 @@
                 myData.hand.forEach((num, idx) => {
                     const c = document.createElement('div');
                     c.className = 'card' + (isMyTurn ? ' turn-highlight' : '');
-                    c.innerText = num;
+                    const displayNum = (num === 1) ? 'A' : (num === 11) ? 'J' : (num === 12) ? 'Q' : (num === 13) ? 'K' : num;
+                    c.innerText = displayNum;
                     c.onclick = () => isMyTurn && playCard(num, idx, myData.hand);
                     handDiv.appendChild(c);
                 });
@@ -179,27 +191,45 @@
         function playCard(num, idx, hand) {
             roomRef.once('value', (snap) => {
                 const data = snap.val();
-                const top = data.tableCard || 0;
+                const top = data.tableCard || 0; // 場のカード
                 let canPlay = false;
 
-                if (top === 0) canPlay = true;
-                else if (top === 2 && num === 3) canPlay = true;
-                else if (top === 2) canPlay = false;
-                else if (num === 2) canPlay = true;
-                else if (num > top) canPlay = true;
+                const myRank = getRank(num);
+                const topRank = getRank(top);
+
+                // --- 判定ロジックここから ---
+                if (top === 0) {
+                    // 1. 場が空なら何でも出せる
+                    canPlay = true;
+                } else if (top === 2 && num === 3) {
+                    // 2. 【下克上】場が 2 で、自分が出すのが 3 なら勝てる！
+                    canPlay = true;
+                    console.log("下克上成功！");
+                } else if (top === 2) {
+                    // 3. 場が 2 の時、3 以外は絶対に出せない（2より強いランクは存在しないため）
+                    canPlay = false;
+                } else if (myRank > topRank) {
+                    // 4. 通常ルール：場より強ければ出せる
+                    canPlay = true;
+                }
+                // --- 判定ロジックここまで ---
 
                 if (canPlay) {
+                    // （以下、カードを出す処理：以前のコードと同じ）
                     stopTurnTimer();
                     const nextId = getNextPlayerId(data.players, myId);
                     hand.splice(idx, 1);
-                    // ✅ 修正：lastShooter を自分の ID に更新
+                    
                     roomRef.update({ 
                         tableCard: num, 
                         turnPlayer: nextId,
                         lastShooter: myId 
                     });
                     roomRef.child('players').child(myId).update({ hand: hand });
-                    if (hand.length === 0) roomRef.update({ state: 'finished', winners: myName });
+                    
+                    if (hand.length === 0) {
+                        roomRef.update({ state: 'finished', winners: myName });
+                    }
                 } else {
                     alert("そのカードは出せません！");
                 }
