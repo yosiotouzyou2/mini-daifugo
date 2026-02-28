@@ -90,11 +90,11 @@
     let lastOutCount = 0; // 強欲な壺用：これまでに何人上がったか
 
     const SKILLS_DATA = [
-        { id: "none", name: "能力なし", desc: "実力のみで戦うスタイル。" },
+        { id: "none", name: "俺は強いぜ", desc: "実力のみで戦うスタイル。" },
         { id: "eightMaster", name: "8切り職人", desc: "8を出すと場を流し、自分の番。" },
         { id: "curse", name: "復讐の呪い", desc: "パスすると他全員のカードを+1枚。" },
         { id: "greed", name: "強欲な壺", desc: "誰かが上がるたび、手札が1枚減る。" },
-        { id: "antiTwo", name: "下克上の英雄", desc: "スキル所有者のみ「2」を「3」で倒せる。" },
+        { id: "antiTwo", name: "下克上の英雄", desc: "「2」を「3」で倒すことが可能に。" },
         { id: "lucky", name: "幸運の守護", desc: "パス時、20%の確率で手札が1枚減少。" }
     ];
 
@@ -150,13 +150,18 @@
 
         roomRef.on('value', (snap) => {
             const data = snap.val();
-            if (!data) return;
 
-            const players = data.players || {};
+            // ★ 追加：データが空、またはplayersが存在しない場合は処理を中断する
+            if (!data || !data.players) {
+                console.log("データの読み込み待ち、またはリセットされました。");
+                return; 
+            }
+
+            const players = data.players;
             const winners = data.winners || [];
 
-            // 強欲な壺：誰かが上がった（winnersが増えた）時に発動
-            if (mySkill === 'greed' && winners.length > lastOutCount && !players[myId].isOut) {
+            // 強欲な壺の判定
+            if (mySkill === 'greed' && winners.length > lastOutCount && players[myId] && !players[myId].isOut) {
                 const myHand = [...(players[myId].hand || [])];
                 if (myHand.length > 0) {
                     myHand.splice(0, 1);
@@ -173,7 +178,9 @@
             document.getElementById('player-list').innerText = "参加者: " + pKeys.map(k => players[k].name).join(", ");
             
             if (data.state === 'playing') {
-                if (players[myId].isOut) {
+                // 自分がすでに上がっているかチェック
+                if (players[myId] && players[myId].isOut) {
+                    document.getElementById('wait-screen').classList.remove('active'); // 待機画面を消す
                     document.getElementById('play-screen').classList.add('active');
                     document.getElementById('turn-info').innerText = "あなたはあがりました。観戦中...";
                     document.getElementById('my-hand').innerHTML = "";
@@ -322,18 +329,25 @@
     function stopTimer() { clearTimeout(kickTimer); document.getElementById('timer-display').innerText = ""; }
 
     function showResultScreen(winners, players) {
+        // ★ 追加：playersデータがなければ処理しない
+        if (!players) return;
+
         document.getElementById('play-screen').classList.remove('active');
         document.getElementById('result-screen').classList.add('active');
         const list = document.getElementById('ranking-list');
-        list.innerHTML = winners.map((name, i) => `<div>${i+1}位: ${name}</div>`).join("");
         
-        // ドベ（最後の一人）を追加
+        // 順位表示
+        let html = winners.map((name, i) => `<div>${i+1}位: ${name} 🎉</div>`).join("");
+        
+        // ドベ（最後の一人）を特定して表示
         const allIds = Object.keys(players);
-        const outIds = allIds.filter(id => players[id].isOut);
         const lastId = allIds.find(id => !players[id].isOut);
-        if (lastId) {
-            list.innerHTML += `<div style="color: #666;">ドベ: ${players[lastId].name}</div>`;
+        
+        if (lastId && players[lastId]) {
+            html += `<div style="margin-top:20px; color: #aaa;">ドベ: ${players[lastId].name} 🃏</div>`;
         }
+        
+        list.innerHTML = html;
     }
 
     function adminReset() { if (prompt("PASS") === "1204") roomRef.remove().then(() => location.reload()); }
